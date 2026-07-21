@@ -39,12 +39,14 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10
+          # Must match package.json "packageManager" field exactly;
+          # otherwise pnpm refuses to run with ERR_PNPM_BAD_PM_VERSION.
+          version: 10.22.0
 
       - name: Cache pnpm store
         uses: actions/cache@v4
