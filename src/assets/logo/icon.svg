@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  OneShell — App Icon (master)
+  Concept: a single terminal window that holds a $ prompt + cursor.
+  Renders cleanly from 16px favicon to 1024px store icon.
+  Brand color: mint green #00FF87 on near-black #0A0F0C.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="OneShell">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0F1A14"/>
+      <stop offset="100%" stop-color="#070B09"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="60%" r="60%">
+      <stop offset="0%" stop-color="#00FF87" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#00FF87" stop-opacity="0"/>
+    </radialGradient>
+    <style>
+      .prompt { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace; font-weight: 700; }
+    </style>
+  </defs>
+
+  <!-- App icon background -->
+  <rect width="1024" height="1024" rx="224" fill="url(#bg)"/>
+  <rect width="1024" height="1024" rx="224" fill="url(#glow)"/>
+
+  <!-- Terminal window -->
+  <g transform="translate(208, 208)">
+    <!-- Frame -->
+    <rect x="0" y="0" width="608" height="608" rx="104"
+          fill="none" stroke="#00FF87" stroke-width="40"
+          stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Title bar traffic lights -->
+    <circle cx="100" cy="100" r="20" fill="#FF5F57" opacity="0.8"/>
+    <circle cx="170" cy="100" r="20" fill="#FEBC2E" opacity="0.8"/>
+    <circle cx="240" cy="100" r="20" fill="#28C840"/>
+
+    <!-- $ prompt -->
+    <text x="140" y="500" class="prompt" font-size="320" fill="#00FF87">$</text>
+
+    <!-- Cursor block -->
+    <rect x="380" y="330" width="50" height="200" rx="8" fill="#00FF87"/>
+  </g>
+</svg>

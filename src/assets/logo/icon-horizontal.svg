@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  OneShell — Horizontal lockup (for README / docs / site header)
+  - The icon keeps its dark surface on any background (intentional brand mark).
+  - The wordmark and cursor adapt to light/dark theme via prefers-color-scheme.
+  - Renders at any width: SVG is vector; the embedded text uses a strong mono fallback.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 360" role="img" aria-label="OneShell">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0F1A14"/>
+      <stop offset="100%" stop-color="#070B09"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="60%" r="60%">
+      <stop offset="0%" stop-color="#00FF87" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#00FF87" stop-opacity="0"/>
+    </radialGradient>
+    <style>
+      .mono { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", "Courier New", monospace; }
+      .wm   { fill: #0A0F0C; }
+      .cur  { fill: #00B86B; }
+      @media (prefers-color-scheme: dark) {
+        .wm  { fill: #E6F7EE; }
+        .cur { fill: #00FF87; }
+      }
+    </style>
+  </defs>
+
+  <!-- App icon (left) — dark surface is intentional and stays the same in both themes -->
+  <g transform="translate(40, 40)">
+    <rect width="280" height="280" rx="61" fill="url(#bg)"/>
+    <rect width="280" height="280" rx="61" fill="url(#glow)"/>
+    <g transform="translate(57, 57)">
+      <rect x="0" y="0" width="166" height="166" rx="28"
+            fill="none" stroke="#00FF87" stroke-width="11"
+            stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="27" cy="27" r="5.5" fill="#FF5F57" opacity="0.8"/>
+      <circle cx="46" cy="27" r="5.5" fill="#FEBC2E" opacity="0.8"/>
+      <circle cx="65" cy="27" r="5.5" fill="#28C840"/>
+      <text x="38" y="135" class="mono" font-size="87" font-weight="700" fill="#00FF87">$</text>
+      <rect x="103" y="90" width="14" height="55" rx="2" fill="#00FF87"/>
+    </g>
+  </g>
+
+  <!-- Wordmark — auto-adapts: dark text on light bg, light text on dark bg -->
+  <text x="380" y="240" class="mono wm" font-size="160" font-weight="700" letter-spacing="-4">OneShell</text>
+
+  <!-- Mint cursor accent — ties wordmark to the icon -->
+  <rect class="cur" x="1230" y="160" width="16" height="100" rx="3"/>
+</svg>

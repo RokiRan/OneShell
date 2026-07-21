@@ -1,6 +1,9 @@
 <div align="center">
 
-# OneShell
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./docs/assets/logo-horizontal-dark.png">
+  <img alt="OneShell" src="./docs/assets/logo-horizontal-light.png" width="640">
+</picture>
 
 **An all-in-one desktop terminal and server management studio.**
 
