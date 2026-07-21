@@ -1,0 +1,118 @@
+name: Release
+
+# Triggers when a tag matching v* is pushed.
+# Builds the Tauri app on macOS / Windows / Linux and uploads the
+# installers as a GitHub Release named after the tag.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write   # required to create the GitHub Release
+
+jobs:
+  build:
+    name: Build (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos
+            os: macos-latest
+            args: '--target universal-apple-darwin'
+          - platform: windows
+            os: windows-latest
+            args: ''
+          - platform: linux
+            os: ubuntu-22.04
+            args: ''
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── Node / pnpm ────────────────────────────────────────────────
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      # ── Rust ───────────────────────────────────────────────────────
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry & target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('src-tauri/Cargo.lock', 'src-tauri/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      # ── Linux system deps for Tauri ────────────────────────────────
+      - name: Install Linux dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libsoup-3.0-dev \
+            libjavascriptcoregtk-4.1-dev \
+            patchelf \
+            build-essential \
+            curl \
+            wget \
+            file
+
+      # ── Build & publish via tauri-action ───────────────────────────
+      - name: Build & publish release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # Tag name is automatically inferred from ${{ github.ref_name }}
+          tagName: ${{ github.ref_name }}
+          releaseName: 'OneShell ${{ github.ref_name }}'
+          releaseBody: |
+            ## OneShell ${{ github.ref_name }}
+
+            See the [README](https://github.com/RokiRan/OneShell#readme) for feature overview and install instructions.
+
+            ### Installers
+
+            | Platform | File |
+            |---|---|
+            | macOS (universal) | `*.dmg`, `*.app.tar.gz` |
+            | Windows | `*.msi`, `*.exe` |
+            | Linux | `*.deb`, `*.AppImage`, `*.rpm` |
+
+            SHA-256 sums are attached next to each asset.
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
