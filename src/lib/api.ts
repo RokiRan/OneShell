@@ -82,6 +82,7 @@ export interface AiConfig {
   api_key: string;
   model: string;
   hotkey: string;
+  auto_analyze: boolean;
 }
 
 export interface ChatMsg {

@@ -13,7 +13,12 @@ import { api } from "@/lib/api";
 onMounted(async () => {
   document.documentElement.classList.add("dark");
   await store.refreshHosts();
-  store.aiHotkey = (await api.getAiConfig().catch(() => null))?.hotkey ?? store.aiHotkey;
+  const cfg = await api.getAiConfig().catch(() => null);
+  if (cfg) {
+    store.aiHotkey = cfg.hotkey || store.aiHotkey;
+    store.aiAutoAnalyze = cfg.auto_analyze;
+    store.aiConfigured = Boolean(cfg.base_url && cfg.api_key && cfg.model);
+  }
   await listen<{ shell_id: string }>("shell-exit", (e) => {
     store.onShellExit(e.payload.shell_id);
   });

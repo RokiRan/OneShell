@@ -24,6 +24,16 @@ export const store = reactive({
   aiSettingsOpen: false,
   /** 命令生成条快捷键 (启动时从 ai.json 加载) */
   aiHotkey: "meta+shift+k",
+  /** 右侧面板宽度 (px), 拖动调整并持久化 */
+  sidePanelWidth: Number(localStorage.getItem("oneshell:side-panel-width")) || 320,
+  /** AI 已配置 (base_url/api_key/model 齐全, 启动时加载) */
+  aiConfigured: false,
+  /** 非零退出码自动 AI 分析开关 (启动时从 ai.json 加载) */
+  aiAutoAnalyze: true,
+  /** 右键 "问 AI" 的待预填内容; AiPanel 挂载/监听时消费 */
+  aiPendingPrefill: "" as string,
+  /** 命令失败自动分析的待处理请求; AiPanel 挂载/监听时消费. followUp=true 表示 AI 跟进自己建议的命令 */
+  aiPendingAnalyze: null as { shellId: string; exitCode: number; followUp: boolean } | null,
 
   /** 当前激活终端对应的 sessionId */
   activeSessionId(): string | null {

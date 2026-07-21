@@ -17,6 +17,13 @@ pub struct AiConfig {
     /// 终端内唤起命令生成条的快捷键, 默认 "ctrl+shift+k" / macOS "meta+shift+k"
     #[serde(default = "default_hotkey")]
     pub hotkey: String,
+    /// 命令非零退出时自动触发 AI 分析, 默认开启
+    #[serde(default = "default_auto_analyze")]
+    pub auto_analyze: bool,
+}
+
+fn default_auto_analyze() -> bool {
+    false
 }
 
 fn default_hotkey() -> String {
@@ -102,10 +109,14 @@ impl ThinkFilter {
                         self.in_think = false;
                     }
                     None => {
-                        // 思考内容丢弃, 只保留可能含半个闭合标签的尾巴
+                        // 思考内容丢弃, 只保留可能含半个闭合标签的尾巴。
+                        // 切口可能落在多字节字符中间 (中文思考内容), 需回退到字符边界。
                         if self.buf.len() > CLOSE.len() * 2 {
-                            let keep = CLOSE.len();
-                            self.buf.drain(..self.buf.len() - keep);
+                            let mut cut = self.buf.len() - CLOSE.len();
+                            while !self.buf.is_char_boundary(cut) {
+                                cut -= 1;
+                            }
+                            self.buf.drain(..cut);
                         }
                         break;
                     }
@@ -146,6 +157,41 @@ impl ThinkFilter {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 长段中文思考内容: 尾部保留切口必须落在字符边界, 不得 panic
+    #[test]
+    fn think_filter_multibyte_boundary() {
+        let mut f = ThinkFilter::new();
+        assert_eq!(f.push("<think>"), "");
+        // 分多次推入大量中文, 触发 in_think 分支的尾部裁剪
+        for _ in 0..20 {
+            assert_eq!(f.push("正在分析用户的问题"), "");
+        }
+        assert_eq!(f.push("</think>答案在这里"), "答案在这里");
+        assert_eq!(f.finish(), "");
+    }
+
+    /// 标签跨 chunk 拆分
+    #[test]
+    fn think_filter_split_tags() {
+        let mut f = ThinkFilter::new();
+        assert_eq!(f.push("前面<thi"), "前面");
+        assert_eq!(f.push("nk>思考</think>后面"), "后面");
+        assert_eq!(f.finish(), "");
+    }
+
+    /// 未闭合的 think 块整体丢弃
+    #[test]
+    fn think_filter_unclosed() {
+        let mut f = ThinkFilter::new();
+        assert_eq!(f.push("可见<think>隐藏的推理"), "可见");
+        assert_eq!(f.finish(), "");
+    }
+}
+
 /// 发起一次 OpenAI 兼容的流式聊天; 增量通过 "ai-chunk" 事件推送
 #[tauri::command]
 pub async fn ai_chat(
@@ -161,105 +207,11 @@ pub async fn ai_chat(
 
     let rid = request_id.clone();
     // 启动闸门: 任务先等注册完成, 避免“任务先清理、主线程后插入”的陈旧句柄竞态
-    let (gate_tx, gate_rx) = tokio::sync::oneshot::channel::<()>();
+    let (gate_tx, gate_rx) = tokio::sync::oneshot::channel();
     let task = tokio::spawn(async move {
         let _ = gate_rx.await;
-        let emit_err = |msg: String| {
-            let _ = app.emit(
-                "ai-chunk",
-                AiChunk {
-                    request_id: request_id.clone(),
-                    delta: String::new(),
-                    done: true,
-                    error: Some(msg),
-                },
-            );
-        };
-
-        let url = format!("{}/chat/completions", cfg.base_url.trim_end_matches('/'));
-        let body = serde_json::json!({
-            "model": cfg.model,
-            "messages": messages,
-            "stream": true,
-        });
-
-        let resp = match reqwest::Client::new()
-            .post(&url)
-            .bearer_auth(&cfg.api_key)
-            .json(&body)
-            .send()
-            .await
-        {
-            Ok(r) => r,
-            Err(e) => return emit_err(format!("请求失败: {e}")),
-        };
-        if !resp.status().is_success() {
-            let status = resp.status();
-            let text = resp.text().await.unwrap_or_default();
-            return emit_err(format!("HTTP {status}: {}", &text[..text.len().min(300)]));
-        }
-
-        // 解析 SSE: "data: {json}" 行, 以 "data: [DONE]" 结束
-        let mut stream = resp.bytes_stream();
-        let mut buf = String::new();
-        let mut filter = ThinkFilter::new();
-        while let Some(chunk) = stream.next().await {
-            let Ok(bytes) = chunk else { break };
-            buf.push_str(&String::from_utf8_lossy(&bytes));
-            while let Some(idx) = buf.find('\n') {
-                let line = buf[..idx].trim().to_string();
-                buf.drain(..=idx);
-                let Some(data) = line.strip_prefix("data:").map(str::trim) else {
-                    continue;
-                };
-                if data == "[DONE]" {
-                    break;
-                }
-                let Ok(json) = serde_json::from_str::<serde_json::Value>(data) else {
-                    continue;
-                };
-                // 独立 reasoning 字段 (reasoning_content 等) 一律忽略, 只取 content
-                let delta = json["choices"][0]["delta"]["content"]
-                    .as_str()
-                    .unwrap_or("")
-                    .to_string();
-                let delta = filter.push(&delta);
-                if !delta.is_empty() {
-                    let _ = app.emit(
-                        "ai-chunk",
-                        AiChunk {
-                            request_id: request_id.clone(),
-                            delta,
-                            done: false,
-                            error: None,
-                        },
-                    );
-                }
-            }
-        }
-        // 冲刷过滤器尾部 (think 未闭合则丢弃)
-        let tail = filter.finish();
-        if !tail.is_empty() {
-            let _ = app.emit(
-                "ai-chunk",
-                AiChunk {
-                    request_id: request_id.clone(),
-                    delta: tail,
-                    done: false,
-                    error: None,
-                },
-            );
-        }
-        let _ = app.emit(
-            "ai-chunk",
-            AiChunk {
-                request_id: request_id.clone(),
-                delta: String::new(),
-                done: true,
-                error: None,
-            },
-        );
-        // 任务结束, 清理取消句柄
+        stream_chat(&app, &request_id, &cfg, messages).await;
+        // 无论成功/失败都清理取消句柄, 避免错误路径上泄漏陈旧句柄
         app.state::<AppState>()
             .ai_requests
             .lock()
@@ -269,6 +221,96 @@ pub async fn ai_chat(
     let _ = gate_tx.send(());
 
     Ok(())
+}
+
+/// 实际的流式请求体; 出错时通过 ai-chunk 的 error 字段通知前端后提前返回
+async fn stream_chat(app: &AppHandle, request_id: &str, cfg: &AiConfig, messages: Vec<ChatMsg>) {
+    let emit_chunk = |delta: String, done: bool, error: Option<String>| {
+        let _ = app.emit(
+            "ai-chunk",
+            AiChunk {
+                request_id: request_id.to_string(),
+                delta,
+                done,
+                error,
+            },
+        );
+    };
+
+    let url = format!("{}/chat/completions", cfg.base_url.trim_end_matches('/'));
+    let body = serde_json::json!({
+        "model": cfg.model,
+        "messages": messages,
+        "stream": true,
+    });
+
+    let resp = match reqwest::Client::new()
+        .post(&url)
+        .bearer_auth(&cfg.api_key)
+        .json(&body)
+        .send()
+        .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            emit_chunk(String::new(), true, Some(format!("请求失败: {e}")));
+            return;
+        }
+    };
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        let mut end = text.len().min(300);
+        while !text.is_char_boundary(end) {
+            end -= 1;
+        }
+        emit_chunk(String::new(), true, Some(format!("HTTP {status}: {}", &text[..end])));
+        return;
+    }
+
+    // 解析 SSE: "data: {json}" 行, 以 "data: [DONE]" 结束。
+    // 按字节缓冲: 多字节字符可能跨 TCP chunk, 凑够整行再解码避免乱码。
+    let mut stream = resp.bytes_stream();
+    let mut buf: Vec<u8> = Vec::new();
+    let mut filter = ThinkFilter::new();
+    'outer: while let Some(chunk) = stream.next().await {
+        let bytes = match chunk {
+            Ok(b) => b,
+            Err(e) => {
+                emit_chunk(String::new(), true, Some(format!("请求流中断: {e}")));
+                return;
+            }
+        };
+        buf.extend_from_slice(&bytes);
+        while let Some(idx) = buf.iter().position(|&b| b == b'\n') {
+            let line = String::from_utf8_lossy(&buf[..idx]).trim().to_string();
+            buf.drain(..=idx);
+            let Some(data) = line.strip_prefix("data:").map(str::trim) else {
+                continue;
+            };
+            if data == "[DONE]" {
+                break 'outer;
+            }
+            let Ok(json) = serde_json::from_str::<serde_json::Value>(data) else {
+                continue;
+            };
+            // 独立 reasoning 字段 (reasoning_content 等) 一律忽略, 只取 content
+            let delta = json["choices"][0]["delta"]["content"]
+                .as_str()
+                .unwrap_or("")
+                .to_string();
+            let delta = filter.push(&delta);
+            if !delta.is_empty() {
+                emit_chunk(delta, false, None);
+            }
+        }
+    }
+    // 冲刷过滤器尾部 (think 未闭合则丢弃)
+    let tail = filter.finish();
+    if !tail.is_empty() {
+        emit_chunk(tail, false, None);
+    }
+    emit_chunk(String::new(), true, None);
 }
 
 /// 取消进行中的 AI 请求

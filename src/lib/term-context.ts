@@ -21,4 +21,48 @@ export function getTermContext(shellId: string, maxChars = 6000): string {
 
 export function dropTermContext(shellId: string) {
   buffers.delete(shellId);
+  metas.delete(shellId);
+  aiCmds.delete(shellId);
+}
+
+export interface TermMeta {
+  cwd: string;
+  lastCmd: string;
+}
+
+const metas = new Map<string, TermMeta>();
+/** AI 建议并写入终端的命令, 失败时用于闭环跟进 (一次性) */
+const aiCmds = new Map<string, Set<string>>();
+
+export function setTermMeta(shellId: string, meta: TermMeta) {
+  metas.set(shellId, meta);
+}
+
+export function getTermMeta(shellId: string): TermMeta {
+  return metas.get(shellId) ?? { cwd: "", lastCmd: "" };
+}
+
+export function markAiCommand(shellId: string, cmd: string) {
+  let set = aiCmds.get(shellId);
+  if (!set) {
+    set = new Set();
+    aiCmds.set(shellId, set);
+  }
+  const firstLine = cmd.trim().split("\n")[0];
+  if (firstLine) set.add(firstLine);
+}
+
+/** 该命令若是 AI 写入的则取出并返回 true (一次性消费) */
+export function takeAiCommand(shellId: string, cmd: string): boolean {
+  const set = aiCmds.get(shellId);
+  if (!set) return false;
+  const t = cmd.trim();
+  for (const c of set) {
+    // 精确匹配或用户追加参数 (c + 空格), 避免 rm file 误吃 rm file-prod
+    if (t === c || t.startsWith(c + " ")) {
+      set.delete(c);
+      return true;
+    }
+  }
+  return false;
 }

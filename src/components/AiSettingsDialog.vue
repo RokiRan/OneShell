@@ -13,8 +13,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
 
-const form = reactive<AiConfig>({ base_url: "", api_key: "", model: "", hotkey: "" });
+const form = reactive<AiConfig>({ base_url: "", api_key: "", model: "", hotkey: "", auto_analyze: true });
 const testing = ref(false);
 const testResult = ref("");
 const error = ref("");
@@ -47,6 +48,8 @@ async function save() {
   try {
     await api.saveAiConfig({ ...form });
     if (form.hotkey) store.aiHotkey = form.hotkey;
+    store.aiAutoAnalyze = form.auto_analyze;
+    store.aiConfigured = Boolean(form.base_url && form.api_key && form.model);
     store.aiSettingsOpen = false;
   } catch (e) {
     error.value = String(e);
@@ -115,6 +118,11 @@ async function test() {
           <Input v-model="form.hotkey" placeholder="meta+shift+k" />
           <p class="text-xs text-muted-foreground">修饰键: meta / ctrl / shift / alt, 用 + 连接</p>
         </div>
+        <div class="flex items-center justify-between">
+          <Label>命令失败时自动发送 AI 分析</Label>
+          <Switch v-model="form.auto_analyze" />
+        </div>
+        <p class="-mt-1.5 text-xs text-muted-foreground">关闭时仅在终端显示提示气泡, 点击才分析</p>
         <p v-if="testResult" class="text-xs">{{ testResult }}</p>
         <p v-if="error" class="text-xs text-destructive">{{ error }}</p>
       </div>
