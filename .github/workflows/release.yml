@@ -63,6 +63,14 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install Apple universal targets (macOS only)
+        if: matrix.platform == 'macos'
+        # GitHub's macOS runners ship with aarch64-apple-darwin only.
+        # universal-apple-darwin needs both aarch64 + x86_64.
+        run: |
+          rustup target add x86_64-apple-darwin
+          rustup target add aarch64-apple-darwin
+
       - name: Cache cargo registry & target
         uses: actions/cache@v4
         with:
