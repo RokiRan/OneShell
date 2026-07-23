@@ -1,5 +1,5 @@
 import { reactive } from "vue";
-import { api, type HostConfig, type SessionInfo } from "./api";
+import { api, normalizeConnectError, type ConnectError, type HostConfig, type SessionInfo } from "./api";
 
 export interface TermTab {
   shellId: string;
@@ -34,6 +34,16 @@ export const store = reactive({
   aiPendingPrefill: "" as string,
   /** 命令失败自动分析的待处理请求; AiPanel 挂载/监听时消费. followUp=true 表示 AI 跟进自己建议的命令 */
   aiPendingAnalyze: null as { shellId: string; exitCode: number; followUp: boolean } | null,
+  /** TOFU 主机密钥确认弹窗 (unknown_host_key); HostKeyDialog 消费 */
+  hostKeyPrompt: null as {
+    error: Extract<ConnectError, { kind: "unknown_host_key" }>;
+    host: HostConfig;
+  } | null,
+  /** 主机密钥硬告警 (mismatch/revoked/CA); HostKeyDialog 消费 */
+  hostKeyAlert: null as Exclude<ConnectError, { kind: "other" }> | null,
+  /** 旧版明文凭据待迁入钥匙串 (启动时加载, 横幅 + 重试) */
+  migrationPending: false,
+  migrationError: "" as string,
 
   /** 当前激活终端对应的 sessionId */
   activeSessionId(): string | null {
@@ -48,6 +58,9 @@ export const store = reactive({
   async connect(host: HostConfig) {
     if (this.connecting.has(host.id)) return;
     this.connecting.add(host.id);
+    // 清掉上一次尝试残留的弹窗状态
+    this.hostKeyPrompt = null;
+    this.hostKeyAlert = null;
     try {
       const info = await api.connect(host.id);
       this.sessions.set(info.session_id, info);
@@ -59,6 +72,16 @@ export const store = reactive({
         alive: true,
       });
       this.activeTab = shellId;
+    } catch (e) {
+      // 主机密钥类错误路由到专用弹窗; 其余原样上抛给调用方展示
+      const ce = normalizeConnectError(e);
+      if (ce && ce.kind === "unknown_host_key") {
+        this.hostKeyPrompt = { error: ce, host };
+      } else if (ce && ce.kind !== "other") {
+        this.hostKeyAlert = ce;
+      } else {
+        throw e;
+      }
     } finally {
       this.connecting.delete(host.id);
     }

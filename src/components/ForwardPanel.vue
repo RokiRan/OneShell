@@ -25,7 +25,7 @@ const showForm = ref(false);
 let unlisten: UnlistenFn | null = null;
 
 const form = reactive({
-  kind: "local" as "local" | "remote",
+  kind: "local" as "local" | "remote" | "dynamic",
   name: "",
   bind_host: "127.0.0.1",
   bind_port: 8080,
@@ -59,14 +59,18 @@ async function toggle(rule: ForwardRule) {
 
 async function addRule() {
   if (!host.value) return;
+  const isDynamic = form.kind === "dynamic";
   const rule: ForwardRule = {
     id: crypto.randomUUID(),
     kind: form.kind,
-    name: form.name || `${form.bind_port} → ${form.target_host}:${form.target_port}`,
+    name:
+      form.name ||
+      (isDynamic ? `SOCKS5 :${form.bind_port}` : `${form.bind_port} → ${form.target_host}:${form.target_port}`),
     bind_host: form.bind_host,
     bind_port: Number(form.bind_port),
-    target_host: form.target_host,
-    target_port: Number(form.target_port),
+    // 动态转发无固定目标, 字段置空占位 (后端忽略)
+    target_host: isDynamic ? "" : form.target_host,
+    target_port: isDynamic ? 0 : Number(form.target_port),
   };
   host.value.forwards.push(rule);
   await api.saveHost(host.value);
@@ -115,6 +119,7 @@ defineExpose({ dispose: () => unlisten?.() });
           <SelectContent>
             <SelectItem value="local">本地转发 (-L)</SelectItem>
             <SelectItem value="remote">远端转发 (-R)</SelectItem>
+            <SelectItem value="dynamic">动态转发 / SOCKS5 (-D)</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -124,21 +129,23 @@ defineExpose({ dispose: () => unlisten?.() });
       </div>
       <div class="grid grid-cols-3 gap-1.5">
         <div class="col-span-2 space-y-1">
-          <Label>{{ form.kind === "local" ? "本地监听" : "远端监听" }}</Label>
+          <Label>{{ form.kind === "local" ? "本地监听" : form.kind === "dynamic" ? "SOCKS5 监听" : "远端监听" }}</Label>
           <Input v-model="form.bind_host" class="h-7 text-xs" />
         </div>
         <div class="space-y-1">
           <Label>端口</Label>
           <Input v-model.number="form.bind_port" type="number" class="h-7 text-xs" />
         </div>
-        <div class="col-span-2 space-y-1">
-          <Label>目标地址</Label>
-          <Input v-model="form.target_host" class="h-7 text-xs" />
-        </div>
-        <div class="space-y-1">
-          <Label>端口</Label>
-          <Input v-model.number="form.target_port" type="number" class="h-7 text-xs" />
-        </div>
+        <template v-if="form.kind !== 'dynamic'">
+          <div class="col-span-2 space-y-1">
+            <Label>目标地址</Label>
+            <Input v-model="form.target_host" class="h-7 text-xs" />
+          </div>
+          <div class="space-y-1">
+            <Label>端口</Label>
+            <Input v-model.number="form.target_port" type="number" class="h-7 text-xs" />
+          </div>
+        </template>
       </div>
       <Button size="sm" class="h-7 w-full text-xs" @click="addRule">保存规则</Button>
     </div>
@@ -149,7 +156,7 @@ defineExpose({ dispose: () => unlisten?.() });
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-1.5">
           <Badge variant="outline" class="text-[10px]">
-            {{ rule.kind === "local" ? "本地" : "远端" }}
+            {{ rule.kind === "local" ? "本地" : rule.kind === "dynamic" ? "SOCKS5" : "远端" }}
           </Badge>
           <span class="font-medium">{{ rule.name }}</span>
         </div>
@@ -168,7 +175,12 @@ defineExpose({ dispose: () => unlisten?.() });
         </div>
       </div>
       <div class="mt-1 text-muted-foreground">
-        {{ rule.bind_host }}:{{ rule.bind_port }} → {{ rule.target_host }}:{{ rule.target_port }}
+        <template v-if="rule.kind === 'dynamic'">
+          {{ rule.bind_host }}:{{ rule.bind_port }} → SOCKS5 代理
+        </template>
+        <template v-else>
+          {{ rule.bind_host }}:{{ rule.bind_port }} → {{ rule.target_host }}:{{ rule.target_port }}
+        </template>
         <span v-if="active.has(rule.id)" class="ml-1 text-emerald-400">● 运行中</span>
       </div>
     </div>

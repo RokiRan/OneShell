@@ -129,7 +129,12 @@ async function submit() {
         <template v-if="form.authKind === 'password'">
           <div class="col-span-2 space-y-1.5">
             <Label>密码</Label>
-            <Input v-model="form.password" type="password" />
+            <Input
+              v-model="form.password"
+              type="password"
+              :placeholder="host ? '留空表示保持不变' : ''"
+            />
+            <p class="text-[10px] text-muted-foreground">密码保存在系统钥匙串, 不写入配置文件。</p>
           </div>
         </template>
         <template v-else>
@@ -139,7 +144,11 @@ async function submit() {
           </div>
           <div class="col-span-2 space-y-1.5">
             <Label>私钥口令 (可选)</Label>
-            <Input v-model="form.passphrase" type="password" />
+            <Input
+              v-model="form.passphrase"
+              type="password"
+              :placeholder="host ? '留空表示保持不变' : ''"
+            />
           </div>
         </template>
       </div>

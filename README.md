@@ -24,8 +24,10 @@ SSH · SFTP · Port Forwarding · Monitoring · AI Assistant — bundled into a 
 | | |
 |---|---|
 | 🖥️ **Multi-tab SSH Terminal** | Real `xterm.js` sessions over `russh`, with split tabs and rich output rendering. |
-| 📁 **SFTP Browser** | Browse, upload, download and edit remote files through a native file panel. |
-| 🔁 **Port Forwarding** | Local / remote / dynamic SSH tunnels configurable per host. |
+| 🔐 **Host Key Verification** | OpenSSH-compatible `known_hosts` checking (wildcards, hashed hosts, revoked keys) with TOFU fingerprint confirmation. |
+| 🗝️ **OS Keychain Credentials** | Passwords and key passphrases live in macOS Keychain / Windows Credential Manager / Secret Service — never in the config file. |
+| 📁 **SFTP Browser** | Browse, upload, download and manage remote files through a native file panel. |
+| 🔁 **Port Forwarding** | Local / remote / dynamic (SOCKS5) SSH tunnels configurable per host. |
 | 📊 **Live Monitoring** | CPU, memory, disk and network metrics streamed straight from the remote host. |
 | 🤖 **AI Assistant** | Ask questions about the current session — Markdown-rendered, sanitized, context-aware. |
 | 🗂️ **Host Library** | Persist host profiles locally; one-click connect. |

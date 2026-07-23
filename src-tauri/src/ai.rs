@@ -201,7 +201,10 @@ pub async fn ai_chat(
     messages: Vec<ChatMsg>,
 ) -> Result<(), String> {
     let cfg = get_ai_config()?;
-    if cfg.base_url.trim().is_empty() || cfg.api_key.trim().is_empty() || cfg.model.trim().is_empty() {
+    if cfg.base_url.trim().is_empty()
+        || cfg.api_key.trim().is_empty()
+        || cfg.model.trim().is_empty()
+    {
         return Err("请先在 AI 设置中填写 base_url / api_key / model".into());
     }
 
@@ -264,7 +267,11 @@ async fn stream_chat(app: &AppHandle, request_id: &str, cfg: &AiConfig, messages
         while !text.is_char_boundary(end) {
             end -= 1;
         }
-        emit_chunk(String::new(), true, Some(format!("HTTP {status}: {}", &text[..end])));
+        emit_chunk(
+            String::new(),
+            true,
+            Some(format!("HTTP {status}: {}", &text[..end])),
+        );
         return;
     }
 

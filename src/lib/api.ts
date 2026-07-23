@@ -6,12 +6,86 @@ export type AuthMethod =
 
 export interface ForwardRule {
   id: string;
-  kind: "local" | "remote" | string;
+  kind: "local" | "remote" | "dynamic";
   name: string;
   bind_host: string;
   bind_port: number;
   target_host: string;
   target_port: number;
+}
+
+// ── 连接错误 (与 Rust ConnectError 的 serde tag 一一对应) ──
+
+export interface StoredKeyInfo {
+  key_type: string;
+  fingerprint: string;
+}
+
+export type ConnectError =
+  | {
+      kind: "unknown_host_key";
+      check_id: string;
+      host_id: string;
+      host: string;
+      port: number;
+      key_type: string;
+      fingerprint: string;
+      message: string;
+    }
+  | {
+      kind: "host_key_mismatch";
+      host_id: string;
+      host: string;
+      port: number;
+      key_type: string;
+      fingerprint: string;
+      stored: StoredKeyInfo[];
+      message: string;
+    }
+  | {
+      kind: "host_key_revoked";
+      host_id: string;
+      host: string;
+      port: number;
+      key_type: string;
+      fingerprint: string;
+      message: string;
+    }
+  | {
+      kind: "unsupported_cert_authority";
+      host_id: string;
+      host: string;
+      port: number;
+      message: string;
+    }
+  | { kind: "other"; message: string };
+
+const CONNECT_ERROR_KINDS: Record<string, true> = {
+  unknown_host_key: true,
+  host_key_mismatch: true,
+  host_key_revoked: true,
+  unsupported_cert_authority: true,
+  other: true,
+};
+
+/**
+ * 归一化 invoke 抛出的连接错误。Tauri 对 Err(枚举) 直接给序列化对象,
+ * 但兜底处理字符串化形态, 防止版本差异导致弹窗静默失效。
+ */
+export function normalizeConnectError(e: unknown): ConnectError | null {
+  let obj: unknown = e;
+  if (typeof e === "string") {
+    try {
+      obj = JSON.parse(e);
+    } catch {
+      return null;
+    }
+  }
+  if (obj === null || typeof obj !== "object" || !("kind" in obj)) return null;
+  const kind = obj.kind; // "kind" in obj 缩窄后为 unknown
+  if (typeof kind !== "string" || !(kind in CONNECT_ERROR_KINDS)) return null;
+  // 边界断言: kind 已验证, 其余字段由 Rust 侧 serde 契约测试保证
+  return obj as ConnectError;
 }
 
 export interface HostConfig {
@@ -143,6 +217,11 @@ export const api = {
   aiChat: (requestId: string, messages: ChatMsg[]) =>
     invoke<void>("ai_chat", { requestId, messages }),
   aiCancel: (requestId: string) => invoke<void>("ai_cancel", { requestId }),
+
+  acceptHostKey: (checkId: string) => invoke<void>("accept_host_key", { checkId }),
+  dismissHostKey: (checkId: string) => invoke<void>("dismiss_host_key", { checkId }),
+  credentialMigrationPending: () => invoke<boolean>("credential_migration_pending"),
+  retryCredentialMigration: () => invoke<void>("retry_credential_migration"),
 };
 
 export function b64encode(bytes: Uint8Array): string {

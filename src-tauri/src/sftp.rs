@@ -136,15 +136,7 @@ pub async fn sftp_upload(
     let session = get_session(&state, &session_id)?;
     let op_id = Uuid::new_v4().to_string();
     tokio::spawn(async move {
-        let result = transfer(
-            &app,
-            &op_id,
-            "upload",
-            &session,
-            &local_path,
-            &remote_path,
-        )
-        .await;
+        let result = transfer(&app, &op_id, "upload", &session, &local_path, &remote_path).await;
         if let Err(e) = result {
             let _ = app.emit(
                 "sftp-progress",

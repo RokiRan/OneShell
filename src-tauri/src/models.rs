@@ -7,7 +7,9 @@ fn default_port() -> u16 {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum AuthMethod {
-    Password { password: String },
+    Password {
+        password: String,
+    },
     Key {
         key_path: String,
         #[serde(default)]
@@ -18,7 +20,7 @@ pub enum AuthMethod {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ForwardRule {
     pub id: String,
-    /// "local" | "remote"
+    /// "local" | "remote" | "dynamic" (SOCKS5)
     pub kind: String,
     pub name: String,
     /// local 转发: 本地监听地址; remote 转发: 远端监听地址
